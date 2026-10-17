@@ -31,6 +31,12 @@ My goal is to combine healthcare experience, biological data and artificial inte
 
 ## Featured Projects
 
+### [Concours Maroc — AI Social Media Automation](projects/concours-maroc-social-automation/)
+
+AI-assisted publishing pipeline for Moroccan public-sector job announcements: **n8n + OpenAI PDF extraction + quality checks + HTML-to-image + Buffer Instagram/TikTok + Data Table deduplication**. Built and tested end-to-end for draft generation; documented as a sanitized importable portfolio workflow.
+
+📁 [Project details](projects/concours-maroc-social-automation/README.md) · [n8n workflow template](projects/concours-maroc-social-automation/workflow/concours-maroc-v4-template.json)
+
 ### Single-Cell RNA-seq Analysis
 
 Analysis of PBMC datasets using quality control, normalization, dimensionality reduction, clustering and cell-type interpretation.
