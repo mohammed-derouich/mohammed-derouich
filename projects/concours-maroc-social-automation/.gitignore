@@ -1,0 +1,11 @@
+# Local secrets and operational exports
+*.env
+.env*
+!/.env.example
+*credentials*.json
+*execution*.json
+*.db
+*.sqlite
+*.log
+.DS_Store
+node_modules/
