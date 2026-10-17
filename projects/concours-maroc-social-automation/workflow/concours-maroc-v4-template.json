@@ -1,0 +1,1367 @@
+{
+  "name": "Concours Maroc Social Automation V4 - sanitized portfolio template",
+  "nodes": [
+    {
+      "id": "46d8129d-f9bf-488e-a9e0-9f17f64acaa3",
+      "name": "00 TEST MANUEL - START",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1600,
+        -300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "a6aeff85-f531-45e2-8999-0fdbf7c78ab2",
+      "name": "00bis PLAN 07H (NON BRANCHE)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1600,
+        100
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// CONCOURS MAROC FINAL | Seule cette node doit être éditée après import.\n// API Keys ne vont JAMAIS ici. Buffer = DRAFT SEULEMENT.\nconst cfg = {\n  maxLiensListe: 36,\n  maxAppelsIA: 2,          // coût limité pour le premier test\n  daysBack: 45,\n  requirePDF: true,\n  instagramChannelId: 'REPLACE_WITH_IG_CHANNEL_ID',\n  tiktokChannelId: 'REPLACE_WITH_TT_CHANNEL_ID',\n  includeInstagram: true,\n  includeTikTok: false,   // passer à true SEULEMENT quand Instagram est validé\n  allowBufferDrafts: false,          // passer à true pour autoriser les DRAFTS\n  allowManualBufferDrafts: false,    // passer à true pour test Execute Workflow manuel\n};\nreturn [{json:cfg}];\n"
+      },
+      "id": "fc95c36d-f1d9-4367-b4c2-950f622e563c",
+      "name": "01 CONFIG - Editions minimales",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1360,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.emploi-public.ma/fr/concours-liste?corps=0&procedure=0&region=0&stat=service_etat",
+        "options": {
+          "timeout": 45000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "55f40d4a-201f-49d7-bb61-4297e1ca6c8a",
+      "name": "02 Emploi-public - Annonces",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1120,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const html=String($input.first().json.data??$input.first().json.body??'');\nif(!html.includes('/concours/details/'))throw new Error('HTML de liste inattendu, aucun concours trouvé.');\nconst cfg=$('01 CONFIG - Editions minimales').first().json;\nconst dec=s=>String(s).replace(/&amp;/gi,'&').replace(/&nbsp;|&#160;/gi,' ').replace(/&#39;|&apos;|&rsquo;/gi,\"'\").replace(/&quot;/gi,'\"');\nconst strip=s=>dec(String(s).replace(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi,' ').replace(/<[^>]*>/g,' ').replace(/\\s+/g,' ')).trim();\nconst seen=new Set(),out=[];\nfor(const m of html.matchAll(/<a\\b[^>]*href\\s*=\\s*[\"']([^\"']+)[\"'][^>]*>([\\s\\S]*?)<\\/a>/gi)){\n const href=dec(m[1]);\n const id=href.match(/\\/fr\\/concours\\/details\\/([0-9a-f-]{30,})/i);\n if(!id)continue;\n const url='https://www.emploi-public.ma/fr/concours/details/'+id[1].toLowerCase();\n const title=strip(m[2]);\n if(!/Annonce|Avis de concours de recrutement/i.test(title))continue;\n if(/annul[eé]|résultat|resultat|convocation/i.test(title))continue;\n if(seen.has(url))continue;\n seen.add(url);out.push({json:{source_url:url,titre_liste:title.slice(0,700)}});\n if(out.length>=cfg.maxLiensListe)break;\n}\nif(!out.length)throw new Error('Aucun lien détecté; HTML du portail à vérifier.');\nreturn out;"
+      },
+      "id": "6a2e04db-ca49-4ec3-8fae-20605c4bd633",
+      "name": "03 Extraire liens officiels",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{action:'charger_historique'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -650,
+        -300
+      ],
+      "id": "aa35c863-5a6e-4cd5-8f3d-af0a4c220380",
+      "name": "04 Préparer lecture historique"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "concours_maroc_drafts"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        -420,
+        -300
+      ],
+      "id": "bf1bbda9-c0c0-4d41-be66-594eceeee501",
+      "name": "05 Data Table - Historique",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// On lit toutes les lignes du tableau UNE SEULE FOIS.\n// Instagram et TikTok sont gérés séparément : un draft IG n'empêche pas TikTok.\nconst cfg=$('01 CONFIG - Editions minimales').first().json;\nconst known=new Map();\nfor(const r of $input.all()) {\n const d=r.json||{};\n if (typeof d.source_url==='string'&&d.source_url) known.set(d.source_url.trim(),d);\n}\nconst links=$('03 Extraire liens officiels').all();\nconst out=[];const seen=new Set();\nfor(const item of links){\n const p=item.json;\n if(!p.source_url||seen.has(p.source_url))continue;\n seen.add(p.source_url);\n const old=known.get(p.source_url)||{};\n const needsInstagram=!!cfg.includeInstagram&&!String(old.instagram_draft_id||'').trim();\n const needsTikTok=!!cfg.includeTikTok&&!String(old.tiktok_draft_id||'').trim();\n if(!needsInstagram&&!needsTikTok)continue;\n out.push({json:{...p,needsInstagram,needsTikTok,\n    prior_instagram_draft_id:old.instagram_draft_id||null,\n    prior_tiktok_draft_id:old.tiktok_draft_id||null}});\n}\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        -300
+      ],
+      "id": "37019c06-8e16-49a6-aa32-c599f507bee4",
+      "name": "06 Choisir concours sans doublon"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.source_url }}",
+        "options": {
+          "timeout": 45000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "3c9afeea-eff8-4401-882e-af058b1a21c6",
+      "name": "07 Lire chaque fiche",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        60,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const meta=$('06 Choisir concours sans doublon').item.json;\nconst raw=String($input.item.json.data??$input.item.json.body??'');\nif(raw.length<400)throw new Error('HTML fiche trop court '+meta.source_url);\nconst dec=s=>String(s).replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/&quot;/gi,'\"').replace(/&rsquo;|&apos;|&#39;/gi,\"'\").replace(/&eacute;/gi,'é').replace(/&agrave;/gi,'à').replace(/&#x([0-9a-f]+);/gi,(_,x)=>String.fromCodePoint(parseInt(x,16))).replace(/&#(\\d+);/g,(_,x)=>String.fromCodePoint(+x));\nconst content=dec(raw.replace(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi,' ').replace(/<style\\b[^>]*>[\\s\\S]*?<\\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/\\s+/g,' ')).trim();\nlet idx=content.search(/Détail de l.annonce/i), end=content.search(/Concours similaires/i);\nconst txt=idx>=0?content.slice(idx,end>idx?end:idx+8500):content.slice(0,8500);\nfunction field(start,stops,max=1600){const m=txt.match(start);if(!m)return '';let t=txt.slice(m.index+m[0].length,m.index+m[0].length+max);const x=stops.map(r=>t.search(r)).filter(x=>x>=0);if(x.length)t=t.slice(0,Math.min(...x));return t.replace(/^[\\s\\-:–—]+/,'').trim();}\nconst org=field(/Administration qui recrute\\s*:?\\s*/i,[/Délai de dépôt des candidatures/i],500);\nconst lim=field(/Délai de dépôt des candidatures\\s*:?\\s*/i,[/Date du concours/i,/Date de publication/i],180);\nconst concours=field(/Date du concours\\s*:?\\s*/i,[/Date de publication/i,/Téléchargement/i],180);\nconst publication=field(/Date de publication\\s*:?\\s*/i,[/Téléchargement/i,/Description/i],180);\nconst grade=field(/Grade\\s*:\\s*/i,[/Nombre de postes/i,/Type de recrutement/i],330);\nconst spec=field(/Spécialité\\s*:\\s*/i,[/Grade\\s*:/i,/Nombre de postes/i],900);\nconst nb=Number(field(/Nombre de postes\\s*:\\s*/i,[/Type de recrutement/i,/Type de dépôt/i],90).match(/\\d+/)?.[0]??0);\nconst code=field(/Code du concours\\s*:\\s*/i,[/Administration organisatrice/i,/Contacter l'administration/i],85);\nconst depot=field(/Site de dépôt\\s*:\\s*/i,[/Informations supplémentaires/i,/Code du concours/i],300).match(/https?:\\/\\/[^\\s<>]+/)?.[0]||null;\nconst mm={janvier:1,fevrier:2,mars:3,avril:4,mai:5,juin:6,juillet:7,aout:8,septembre:9,octobre:10,novembre:11,decembre:12};\nfunction iso(v){const s=String(v||'').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');let m=s.match(/(\\d{1,2})[/-](\\d{1,2})[/-](20\\d{2})/);if(m)return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;m=s.match(/(\\d{1,2})\\s+([a-z]+)\\s+(20\\d{2})/);return m&&mm[m[2]]?`${m[3]}-${String(mm[m[2]]).padStart(2,'0')}-${m[1].padStart(2,'0')}`:null;}\n// Exact PDF opening decree link; do not guess using source UUID.\nconst hrefs=[...raw.matchAll(/href\\s*=\\s*[\"']([^\"']+)[\"']/gi)].map(m=>dec(m[1]));\nconst pdfHref=hrefs.find(h=>/\\/concours\\/download\\/arrete\\/[0-9a-f-]+/i.test(h));\nconst path=pdfHref?.match(/\\/fr\\/concours\\/download\\/arrete\\/[0-9a-f-]+/i)?.[0]||null;\nconst pdf_url=path?'https://www.emploi-public.ma'+path:null;\nconst p={source_url:meta.source_url,titre_liste:meta.titre_liste,organisme_fiche:org,grade_fiche:grade,postes_fiche:nb,specialite_fiche:spec,date_limite_fiche:iso(lim),date_limite_texte:lim,date_concours_fiche:iso(concours),date_publication:iso(publication),code_concours:code,lien_inscription_fiche:depot,pdf_url,fiche_texte:txt.slice(0,6500)};\nreturn {json:{...meta,...p}};"
+      },
+      "id": "967631c5-0aa4-41ba-9d93-27a43f31384f",
+      "name": "08 Extraire fiche et lien PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg=$('01 CONFIG - Editions minimales').first().json;\nconst parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Casablanca',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());\nconst dt=Object.fromEntries(parts.map(x=>[x.type,x.value]));\nconst today=`${dt.year}-${dt.month}-${dt.day}`;\nconst out=[];\nfor(let i=0;i<$input.all().length;i++){\n const p=$input.all()[i].json;\n if(!p.date_limite_fiche||p.date_limite_fiche<today)continue;\n if(!p.date_publication)continue;\n const age=(Date.parse(today+'T12:00:00Z')-Date.parse(p.date_publication+'T12:00:00Z'))/86400000;\n if(age<0||age>cfg.daysBack)continue;\n if(!p.organisme_fiche||!p.grade_fiche||p.postes_fiche<1)continue;\n out.push({json:{...p,eligibilite:'EN_ATTENTE_IA'},pairedItem:{item:i}});\n if(out.length>=cfg.maxAppelsIA)break;\n}\nreturn out;\n"
+      },
+      "id": "23116464-d6ec-4756-ae8b-499c672bb6a5",
+      "name": "09 Filtrer et limiter appels IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "fedc4071-c4e2-4f84-b247-792adb4df485",
+              "leftValue": "={{ $json.pdf_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e0ae3368-b054-41d2-a7c0-ea652d2f0d0c",
+      "name": "10 PDF officiel présent ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        780,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const p=$input.item.json;\nconst system=`Tu es un vérificateur expert des concours officiels marocains. Tu analyses UNE FICHE emploi-public.ma ET SON ARRETE PDF partagé. Le PDF peut être un scan: lis les pages visuellement. Retourne uniquement un objet JSON valide sans Markdown. Champs: organisme (string|null), grade (string|null), nombre_postes (entier|null), diplomes (string[]), specialites (string[]), conditions (string[]), documents (string[]), date_limite (YYYY-MM-DD|null), date_concours (YYYY-MM-DD|null), lien_inscription (string|null), note_divergence (string|null), statut_verification ('extrait'|'a_verifier'). IMPORTANT: nombre_postes et specialites doivent correspondre UNIQUEMENT à la fiche individuelle, jamais au total d'un PDF partagé. Le PDF sert aux conditions, diplômes et vérifications. La DATE LIMITE de candidature vient de la fiche. \"avant le 18/10\" peut signifier 17/10 comme dernier jour et n'est pas automatiquement une contradiction. Ne confonds pas doctorat obtenu à l'étranger et nationalité étrangère. Ne déduis pas de diplôme par le grade. Quand données non prouvées, laisser vide/null, et statut a_verifier. Ne rends PAS de faux renseignements.`;\nconst description=JSON.stringify({source_url:p.source_url,fiche:{organisme:p.organisme_fiche,grade:p.grade_fiche,nombre_postes:p.postes_fiche,specialite:p.specialite_fiche,date_limite:p.date_limite_fiche,date_concours:p.date_concours_fiche,lien_inscription:p.lien_inscription_fiche,texte:p.fiche_texte}});\nconst body={model:'gpt-4.1-mini',input:[{role:'system',content:[{type:'input_text',text:system}]},{role:'user',content:[{type:'input_text',text:'FICHE INDIVIDUELLE: '+description},{type:'input_file',file_url:p.pdf_url}]}],text:{format:{type:'json_object'}},max_output_tokens:2200};\nreturn {json:{...p,openai_body:body}};"
+      },
+      "id": "792fab38-5666-432d-9c6e-aae0f64f459a",
+      "name": "11 Préparer OpenAI (PDF & Fiche)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/responses",
+        "options": {
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.openai_body) }}"
+      },
+      "id": "5651d000-30bb-4f47-9004-fd1cf49e7dc3",
+      "name": "12 OpenAI - Lire PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1260,
+        -400
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Concours Maroc V3.3 — Node 10 : verification prudente fiche/PDF.\n// Mode n8n : Run Once for Each Item.\nconst p = $('11 Préparer OpenAI (PDF & Fiche)').item.json;\nconst r = $input.item.json;\nconst t = r.output?.flatMap(x => x.content || []).find(x => x.type === 'output_text')?.text || '';\nconst errors = [];\nconst warnings = [];\nlet ai = {};\ntry {\n  if (!t) throw new Error(r.error?.message || r.message || 'OpenAI sans réponse');\n  ai = JSON.parse(t.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim());\n} catch (e) {\n  errors.push('OPENAI_ERROR: ' + String(e.message).slice(0, 180));\n}\nconst arr = x => Array.isArray(x) ? x.map(v => String(v ?? '').trim()).filter(Boolean) : [];\nconst norm = x => String(x ?? '').toLowerCase().normalize('NFD')\n  .replace(/[\\u0300-\\u036f]/g, '').replace(/[\\u064b-\\u065f]/g, '')\n  .replace(/[^a-z0-9\\u0600-\\u06ff]+/g, ' ').trim();\nconst originalSpec = String(p.specialite_fiche || '').trim();\nconst isPlaceholder = !originalSpec || /(?:^|\\s)(?:voir|consulter|annonce|reporter|انظر|راجع|الاعلان)(?:\\s|$)/i.test(norm(originalSpec));\nconst pdfSpecs = arr(ai.specialites);\nconst ficheSpecs = originalSpec.split(/\\s+-\\s+/).map(x => x.trim()).filter(Boolean);\nconst category = s => {\n  const x = norm(s);\n  if (/plomb|ترصيص|سباك/.test(x)) return 'plomberie';\n  if (/mecan|voiture|automobile|carrosserie|ميكانيك|مصلح مركبات|سيارات/.test(x)) return 'mecanique-auto';\n  return x;\n};\n\nif (!p.pdf_url) errors.push('PDF ABSENT');\nif (!p.date_limite_fiche) errors.push('DATE FICHE ABSENTE');\nif (!p.grade_fiche || !p.organisme_fiche) errors.push('GRADE/ORGANISME FICHE ABSENT');\nif (!Number.isInteger(p.postes_fiche) || p.postes_fiche < 1) errors.push('POSTES FICHE ABSENTS');\nif (!Number.isInteger(ai.nombre_postes) || ai.nombre_postes !== p.postes_fiche) errors.push('POSTES IA != FICHE');\nif (ai.grade && p.grade_fiche && norm(ai.grade) !== norm(p.grade_fiche)) {\n  errors.push('GRADE IA != FICHE');\n}\nif (!pdfSpecs.length) errors.push('SPECIALITES NON EXTRAITES DU PDF');\nif (isPlaceholder) {\n  warnings.push('La fiche ne détaille pas les spécialités : utiliser celles du PDF officiel après contrôle.');\n} else if (pdfSpecs.length) {\n  const ficheSet = [...new Set(ficheSpecs.map(category))];\n  const pdfSet = [...new Set(pdfSpecs.map(category))];\n  if (!ficheSet.every(s => pdfSet.includes(s)) || !pdfSet.every(s => ficheSet.includes(s))) {\n    errors.push('SPECIALITES FICHE / PDF A RECONCILIER');\n  }\n  if (ficheSpecs.length > Number(p.postes_fiche || 0) && ficheSpecs.length > 1) {\n    errors.push('FICHE : ' + ficheSpecs.length + ' MENTIONS DE SPECIALITE POUR ' + p.postes_fiche + ' POSTES');\n  }\n}\nconst dipl = arr(ai.diplomes);\nif (!dipl.length) errors.push('DIPLOMES NON EXTRAITS');\nif (!ai.date_limite || ai.date_limite !== p.date_limite_fiche) errors.push('DATE IA != FICHE');\nif (ai.statut_verification !== 'extrait') errors.push('IA DEMANDE REVISION');\n\nconst note = String(ai.note_divergence || '').trim();\nif (note) {\n  // Simple précision sur une plage d'inscription : pas un conflit de date.\n  const dateOnly = /date|p[eé]riode|candidature|d[eé]p[oô]t|octobre|novembre|jusqu|avant/i.test(note)\n    && !/sp[eé]cialit|grade|poste|dipl[oô]me|âge|age|nationalit|discordance sur/i.test(note);\n  if (dateOnly && ai.date_limite === p.date_limite_fiche) {\n    warnings.push('Note sur la période de candidature : ' + note.slice(0, 210));\n  } else {\n    errors.push('DIVERGENCE DOCUMENTAIRE: ' + note.slice(0, 180));\n  }\n}\n\n// Ne pas recopier des âges maximaux différents comme s'ils s'appliquaient à tous.\nconst rawConditions = arr(ai.conditions);\nconst maxAges = [...new Set(rawConditions.flatMap(s => [\n  ...[...s.matchAll(/(\\d{2})\\s*(?:سنة|سنوات|ans?)\\s*(?:على الأكثر|كحد أقصى|maximum|au plus)/gi)].map(m => Number(m[1])),\n  ...[...s.matchAll(/(?:لا يتجاوز|لا تتجاوز|دون أن تتجاوز|ne dépasse pas|sans dépasser)\\s*(\\d{2})\\s*(?:سنة|سنوات|ans?)/gi)].map(m => Number(m[1]))\n]))];\nconst exceptionAgeExpliquee = rawConditions.some(s => /يمكن تمديد|dérogation|prolongation|à titre exceptionnel|بصفة استثنائية/i.test(s));\nconst ageAmbigu = maxAges.length > 1 && !exceptionAgeExpliquee;\nif (ageAmbigu) warnings.push('LIMITES AGE MULTIPLES (' + maxAges.join('/') + ') : préciser les catégories avant publication.');\nconst conditions = ageAmbigu\n  ? rawConditions.filter(s => !/(?:\\d{2}\\s*(?:سنة|سنوات|ans?)|العمر|age|âge)/i.test(s))\n      .concat(['شروط السن تختلف حسب فئة المترشح؛ يرجى الرجوع للإعلان الرسمي.'])\n  : rawConditions;\n\nconst status = errors.length ? 'A_VERIFIER' : 'COHERENT';\nreturn {json: {\n  source_url: p.source_url,\n  pdf_url: p.pdf_url,\n  organisme: p.organisme_fiche,\n  grade: p.grade_fiche,\n  postes: p.postes_fiche,\n  specialites: isPlaceholder ? pdfSpecs : ficheSpecs,\n  diplomes: dipl,\n  conditions,\n  documents: arr(ai.documents),\n  date_limite: p.date_limite_fiche,\n  date_limite_texte: p.date_limite_texte,\n  date_concours: p.date_concours_fiche,\n  date_publication: p.date_publication,\n  code_concours: p.code_concours,\n  lien_inscription: ai.lien_inscription || p.lien_inscription_fiche,\n  ai_extraction: ai,\n  verification_automatique: status,\n  erreurs_verification: errors,\n  avertissements_verification: warnings,\n  revue_humaine_recommandee: warnings.length > 0 || errors.length > 0,\n  autoriser_publication: false,\n  needsInstagram: !!p.needsInstagram,\n  needsTikTok: !!p.needsTikTok\n}};\n"
+      },
+      "id": "fdf4bd1c-60b4-47ef-b2e0-cbe35c1817a1",
+      "name": "13 Contrôle qualité de la fiche",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "21fda61b-0e61-4e21-ab8c-e447b5a81bf7",
+              "leftValue": "={{ $json.verification_automatique }}",
+              "rightValue": "COHERENT",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "42953964-b68a-4457-9acf-071eb9ba617c",
+      "name": "14 Annonce contrôlée ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1740,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Concours Maroc | Affiche fixe 1080x1350, aucun chevauchement footer.\n// Informations longues : pas de points de suspension ; détails complets dans caption.\nconst p=$input.item.json;\nif(p.verification_automatique!=='COHERENT')throw new Error('Controle non valide');\nconst arr=v=>Array.isArray(v)?v.map(x=>String(x??'').trim()).filter(Boolean):v?[String(v)]:[];\nconst esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;');\nconst org=String(p.organisme||'');\nconst grade=String(p.grade||'');\nconst dipl=arr(p.diplomes);const specs=arr(p.specialites);const conditions=arr(p.conditions);\nconst date=/^\\d{4}-\\d\\d-\\d\\d$/.test(p.date_limite||'')?p.date_limite.split('-').reverse().join('/'):String(p.date_limite||'Voir annonce');\nconst dConc=/^\\d{4}-\\d\\d-\\d\\d$/.test(p.date_concours||'')?p.date_concours.split('-').reverse().join('/'):'';\nconst logo='https://raw.githubusercontent.com/mohammed-derouich/mohammed-derouich/main/assets/concours-maroc-logo.svg';\nconst showOr=(s,max,alternative)=>s.length<=max?s:alternative;\nconst specFull=specs.join(' · ');\nconst diplomaFull=dipl[0]||'Consultez l’annonce officielle';\n// On privilégie l'information lisible plutôt que la coupure de texte.\nconst diplomaShow=showOr(diplomaFull,190,'تفاصيل الدبلوم كاملاً في الوصف المرفق');\nconst specShow=showOr(specFull,220,'التخصصات كثيرة، لائحة كاملة في الوصف المرفق');\nconst extraDipl=dipl.slice(1,3).join(' • ');\nconst equivShow=showOr(extraDipl||'يرجى الرجوع للإعلان الرسمي',165,'تفاصيل الدبلومات المعادلة في الوصف');\nconst fsOrg=org.length>85?26:org.length>58?30:36;\nconst fsSpec=specShow.length>155?20:specShow.length>90?24:30;\nconst fsDipl=diplomaShow.length>155?18:diplomaShow.length>110?21:diplomaShow.length>65?24:29;\nconst caption=[\n  `🇲🇦 مباراة توظيف - ${org}`,\n  `📋 الدرجة: ${grade}`,\n  `👥 عدد المناصب: ${p.postes}`,\n  `📚 التخصصات: ${specFull||'انظر الإعلان الرسمي'}`,\n  `🎓 الدبلومات: ${dipl.join(' / ')||'انظر الإعلان الرسمي'}`,\n  '', '📌 الشروط:',...conditions.slice(0,6).map(x=>'• '+x),\n  '',`⏰ آخر أجل: ${date}`,\n  dConc?`🗓️ تاريخ المباراة: ${dConc}`:'',\n  p.lien_inscription?`📝 التسجيل: ${p.lien_inscription}`:'',\n  `🔗 الإعلان الرسمي: ${p.source_url}`,\n  '',...(arr(p.avertissements_verification).length?['⚠️ راجع الإعلان الرسمي للتأكد من الشروط والتفاصيل.']:[]),\n  'صفحة إخبارية مستقلة وغير حكومية، ليست جهة توظيف رسمية.',\n  '#ConcoursMaroc #مباريات_التوظيف #الوظيفة_العمومية'\n].filter(x=>x!==null&&x!==undefined).join('\\n');\nconst html=`<!doctype html><html lang=\"ar\" dir=\"rtl\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=1080,initial-scale=1\"><link href=\"https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap\" rel=\"stylesheet\"><style>\n*{box-sizing:border-box}html,body{width:1080px;height:1350px;margin:0;padding:0;overflow:hidden}body{font-family:Cairo,Arial,sans-serif;color:#11243e;background:#f8fafc}\n.page{width:1080px;height:1350px;position:relative;overflow:hidden;background:#f8fafc}.flag{position:absolute;top:0;left:0;right:0;height:20px;background:linear-gradient(to right,#006233 0 50%,#c8102e 50% 100%)}\n.header{position:absolute;top:20px;left:58px;right:58px;height:136px;display:flex;direction:ltr;align-items:center;justify-content:space-between}.brand{display:flex;gap:15px;align-items:center}.brand-logo{width:93px;height:93px;object-fit:contain;border-radius:20px}.brand-name{font-family:Arial,sans-serif;font-size:36px;font-weight:900;white-space:nowrap}.brand-name span{color:#c8102e}.handle{font-family:Arial,sans-serif;color:#64748b;font-size:20px;margin-top:6px}.year{background:#e5f6ed;color:#006233;padding:11px 19px;border-radius:45px;font-size:22px;font-weight:900}\n.card{position:absolute;left:60px;right:60px;overflow:hidden;border-radius:26px}.hero{top:165px;height:236px;background:linear-gradient(120deg,#0b2341,#17476b);padding:25px 35px;color:#fff;box-shadow:0 10px 26px #12345518}.hero-kicker{font-size:26px;font-weight:900;color:#a9f0cf}.hero-org{margin-top:9px;line-height:1.25;max-height:92px;overflow:hidden;font-weight:900;overflow-wrap:anywhere}.hero-grade{margin-top:10px;color:#e1eaf2;font-size:23px;line-height:1.35;max-height:40px;overflow:hidden}\n.numbers{top:418px;height:164px;display:flex;gap:17px;background:transparent}.mini{height:164px;padding:18px 24px;background:#fff;border:2px solid #e0e7ef;border-radius:24px;overflow:hidden}.mini-posts{width:34%}.mini-diploma{flex:1}.label{color:#66788f;font-size:22px;font-weight:800}.post-count{color:#c8102e;font-family:Arial,sans-serif;font-weight:900;font-size:77px;line-height:1.15;margin-top:8px}.main-diploma{margin-top:8px;line-height:1.32;max-height:103px;overflow:hidden;overflow-wrap:anywhere;font-weight:900}\n.specialty{top:600px;height:204px;background:#fff;border:2px solid #e0e7ef;padding:18px 28px}.specialty-text{margin-top:9px;font-weight:900;line-height:1.35;max-height:132px;overflow:hidden;overflow-wrap:anywhere}.equiv{top:821px;height:139px;background:#e9f2f9;padding:15px 29px}.equiv-text{margin-top:7px;font-size:21px;line-height:1.42;max-height:70px;overflow:hidden;overflow-wrap:anywhere}\n.deadline{top:980px;height:155px;border:2px solid #f5bfca;background:#fff0f2;padding:16px 30px}.deadline-label{color:#92394b;font-size:26px;font-weight:900;line-height:1.35}.deadline-value{color:#c8102e;font-family:Arial,sans-serif;direction:ltr;text-align:center;font-size:66px;line-height:1.15;font-weight:900;margin-top:9px}\n.footer{position:absolute;top:1201px;left:60px;right:60px;height:100px;border-top:2px solid #d7e1eb;display:flex;justify-content:space-between;align-items:center;gap:25px}.footer-cta{color:#006233;font-size:23px;font-weight:900;max-width:57%}.footer-source{color:#66788f;font-size:17px;line-height:1.7;text-align:left;direction:ltr;max-width:42%}.bottom-line{position:absolute;left:60px;right:60px;bottom:19px;text-align:center;color:#93a0af;font-size:15px}\n</style></head><body><main class=\"page\"><div class=\"flag\"></div><header class=\"header\"><div class=\"brand\"><img class=\"brand-logo\" src=\"${esc(logo)}\"><div><div class=\"brand-name\">CONCOURS <span>MAROC</span></div><div class=\"handle\">@concoursmaroc1</div></div></div><div class=\"year\">🇲🇦 2026</div></header>\n<section class=\"card hero\"><div class=\"hero-kicker\">📢 مباراة توظيف</div><div class=\"hero-org\" style=\"font-size:${fsOrg}px\">${esc(org)}</div><div class=\"hero-grade\">${esc(grade)}</div></section>\n<section class=\"card numbers\"><div class=\"mini mini-posts\"><div class=\"label\">عدد المناصب</div><div class=\"post-count\">${esc(p.postes)}</div></div><div class=\"mini mini-diploma\"><div class=\"label\">🎓 الدبلوم المطلوب</div><div class=\"main-diploma\" style=\"font-size:${fsDipl}px\">${esc(diplomaShow)}</div></div></section>\n<section class=\"card specialty\"><div class=\"label\">📚 التخصصات المطلوبة</div><div class=\"specialty-text\" style=\"font-size:${fsSpec}px\">${esc(specShow)}</div></section><section class=\"card equiv\"><div class=\"label\">📄 الدبلومات المعادلة / المقبولة</div><div class=\"equiv-text\">${esc(equivShow)}</div></section>\n<section class=\"card deadline\"><div class=\"deadline-label\">⏰ آخر أجل للترشيح</div><div class=\"deadline-value\">${esc(date)}</div></section>\n<footer class=\"footer\"><div class=\"footer-cta\">🔗 التفاصيل والرابط في الـ Caption</div><div class=\"footer-source\">Source: emploi-public.ma<br>صفحة مستقلة وغير حكومية</div></footer><div class=\"bottom-line\">راجع الإعلان الرسمي لمعرفة جميع الشروط والتخصصات</div>\n</main></body></html>`;\nreturn {json:{...p,html,caption,image_title:org+' — '+specFull}};\n"
+      },
+      "id": "f51e6428-0e92-4896-accd-83071dce8716",
+      "name": "15 Générer Affiche 1080x1350 + Caption",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        -480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hcti.io/v1/image",
+        "options": {
+          "timeout": 90000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ html: $json.html, viewport_width: 1080, viewport_height: 1350, selector: '.page' }) }}"
+      },
+      "id": "6294586e-2235-4833-ba89-4ba6d26c61ac",
+      "name": "16 HCTI - JPG (1080x1350)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2220,
+        -480
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const p=$('15 Générer Affiche 1080x1350 + Caption').item.json;\nconst r=$input.item.json;\nconst url=String(r.url||'');\nconst ok=/^https:\\/\\/hcti\\.io\\/v1\\/image\\/[0-9a-f-]+(?:\\.jpg)?$/i.test(url);\nconst image_url=ok?(url.endsWith('.jpg')?url:url+'.jpg'):null;\nreturn {json:{source_url:p.source_url,organisme:p.organisme,grade:p.grade,postes:p.postes,specialites:p.specialites,diplomes:p.diplomes,caption:p.caption,image_url,verification_automatique:p.verification_automatique,needsInstagram:p.needsInstagram,needsTikTok:p.needsTikTok,revue_humaine_recommandee:p.revue_humaine_recommandee,statut_image:ok?'IMAGE_PRETE':'HCTI_ERREUR',hcti_error:ok?null:(r.error?.message||r.message||'HCTI sans URL'),autoriser_publication:false}};\n"
+      },
+      "id": "2464cb6a-bb76-4966-a51b-4ef38d6deb6d",
+      "name": "17 Préparer média + provenance",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2460,
+        -480
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const p=$input.item.json;\nreturn {json:{source_url:p.source_url,statut:'A_REVOIR',raison:'Arrêté PDF non détecté sur la fiche; extraction IA non tentée',pdf_url:p.pdf_url||null}};"
+      },
+      "id": "ca9eb935-ddc2-4ee5-97a1-77db23dce4ad",
+      "name": "95 A REVOIR - PDF absent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        -110
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const p=$input.item.json;\nreturn {json:{source_url:p.source_url,statut:'A_REVOIR',raisons:p.erreurs_verification,organisme:p.organisme,grade:p.grade,postes:p.postes,pdf_url:p.pdf_url}};"
+      },
+      "id": "88f1f6d0-9efe-4503-9864-6a353fa91a1f",
+      "name": "96 A REVOIR - IA incohérente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        -110
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const p=$input.item.json;const cfg=$('01 CONFIG - Editions minimales').first().json;\nconst enabled=cfg.includeInstagram;\nconst needed=p.needsInstagram;\nconst manual=$execution.mode!=='production';\nconst send=!!(enabled&&needed&&cfg.allowBufferDrafts&&(!manual||cfg.allowManualBufferDrafts)&&p.statut_image==='IMAGE_PRETE'&&p.verification_automatique==='COHERENT');\nreturn {json:{...p,can_IG:send,reason_IG:send?null:(!enabled?'CHANNEL_OFF':!needed?'DEJA_TRAITE':!cfg.allowBufferDrafts?'DRAFTS_OFF':manual&&!cfg.allowManualBufferDrafts?'MANUEL_BLOQUE':'CONTROLE_OU_IMAGE')}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2690,
+        -680
+      ],
+      "id": "d46a8d59-4844-4d99-9834-3e9ec8ae032b",
+      "name": "18 IG Autoriser DRAFT ?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "baeb6052-1795-4ca8-bdcb-d55a94c44d8d",
+              "leftValue": "={{ $json.can_IG }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2910,
+        -680
+      ],
+      "id": "294f1964-0bbd-4360-876b-c48b35dd17a6",
+      "name": "19 IG Permis ?"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "rowNotExists",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "concours_maroc_drafts"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "source_url",
+              "condition": "eq",
+              "keyValue": "={{ $json.source_url }}"
+            },
+            {
+              "keyName": "instagram_draft_id",
+              "condition": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3140,
+        -680
+      ],
+      "id": "f24c9f7f-df52-4d4b-a50b-4d543c574b32",
+      "name": "20 IG Anti-doublon par canal"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const p=$input.item.json;\nif(p.can_IG!==true)throw new Error('Draft interdit');\nconst cfg=$('01 CONFIG - Editions minimales').first().json;\nconst metadata={instagram:{type:\"post\",shouldShareToFeed:true}};\nconst variables={input:{channelId:cfg.instagramChannelId,text:p.caption,schedulingType:'automatic',mode:'addToQueue',saveToDraft:true,metadata,assets:[{image:{url:p.image_url}}]}};\nconst query='mutation CreateDraft($input:CreatePostInput!){createPost(input:$input){... on PostActionSuccess{post{id text}} ... on MutationError{message}}}';\nreturn {json:{source_url:p.source_url,image_url:p.image_url,channel:'IG',query,variables}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        -680
+      ],
+      "id": "4766e277-6acb-40f7-9e9c-d1d34a201920",
+      "name": "21 IG Construire requête Buffer"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.buffer.com",
+        "options": {
+          "timeout": 45000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: $json.query, variables: $json.variables }) }}"
+      },
+      "id": "6bb8cad5-4e75-4f16-9afd-ba7e3f7dc4ae",
+      "name": "22 IG Buffer - Créer DRAFT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3580,
+        -680
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const r=$input.item.json;const p=$('21 IG Construire requête Buffer').item.json;\nconst id=r.data?.createPost?.post?.id||null;\nconst err=r.data?.createPost?.message||r.errors?.[0]?.message||r.error?.message||null;\nreturn {json:{source_url:p.source_url,instagram_draft_id:id,resultat:id?'DRAFT_CREE':'ECHEC_DRAFT',ok_draft:!!id,erreur:err,channel:'IG',image_url:p.image_url}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3800,
+        -680
+      ],
+      "id": "144b7f90-a99c-4c9d-ba0b-8ab7ffda16fa",
+      "name": "23 IG Vérifier retour Buffer"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "311a65a9-ca5d-45d6-ab29-febdd014428f",
+              "leftValue": "={{ $json.ok_draft }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4020,
+        -680
+      ],
+      "id": "4109825c-c918-43a4-bdb6-3716bbb2daa3",
+      "name": "24 IG Draft confirmé ?"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "concours_maroc_drafts"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "source_url",
+              "condition": "eq",
+              "keyValue": "={{ $json.source_url }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "source_url": "={{ $json.source_url }}",
+            "instagram_draft_id": "={{ $json.instagram_draft_id }}",
+            "statut": "DRAFT_CREE"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "source_url",
+              "displayName": "source_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "instagram_draft_id",
+              "displayName": "instagram_draft_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4240,
+        -680
+      ],
+      "id": "715e3dff-52f2-4e8c-80e2-0606fc2109d4",
+      "name": "25 IG Enregistrer dans Data Table"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {json:{source_url:$json.source_url,channel:'IG',preview:true,raison:$json.reason_IG,image_url:$json.image_url,buffer_draft_cree:false}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3150,
+        -490
+      ],
+      "id": "40b3a6bc-0807-494c-a72a-6e041c50c2b2",
+      "name": "26 IG Preview sécurisé"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {json:{source_url:$json.source_url,channel:$json.channel,statut:'ERREUR_BUFFER',erreur:$json.erreur,draft_cree:false}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4250,
+        -500
+      ],
+      "id": "5d40fe16-f580-486b-b0a4-b94a310438e0",
+      "name": "27 IG Erreur Buffer - Revue"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const p=$input.item.json;const cfg=$('01 CONFIG - Editions minimales').first().json;\nconst enabled=cfg.includeTikTok;\nconst needed=p.needsTikTok;\nconst manual=$execution.mode!=='production';\nconst send=!!(enabled&&needed&&cfg.allowBufferDrafts&&(!manual||cfg.allowManualBufferDrafts)&&p.statut_image==='IMAGE_PRETE'&&p.verification_automatique==='COHERENT');\nreturn {json:{...p,can_TT:send,reason_TT:send?null:(!enabled?'CHANNEL_OFF':!needed?'DEJA_TRAITE':!cfg.allowBufferDrafts?'DRAFTS_OFF':manual&&!cfg.allowManualBufferDrafts?'MANUEL_BLOQUE':'CONTROLE_OU_IMAGE')}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2690,
+        60
+      ],
+      "id": "5debc182-bcfe-40e0-af34-bf6129fe0c64",
+      "name": "18 TT Autoriser DRAFT ?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "9ecd22af-2941-4695-abe9-3e8f12c9fdba",
+              "leftValue": "={{ $json.can_TT }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2910,
+        60
+      ],
+      "id": "a8d83438-f489-4d36-a2ae-d397f89381f5",
+      "name": "19 TT Permis ?"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "rowNotExists",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "concours_maroc_drafts"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "source_url",
+              "condition": "eq",
+              "keyValue": "={{ $json.source_url }}"
+            },
+            {
+              "keyName": "tiktok_draft_id",
+              "condition": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3140,
+        60
+      ],
+      "id": "03435316-639b-4a7f-8c1f-f5c8955f1716",
+      "name": "20 TT Anti-doublon par canal"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const p=$input.item.json;\nif(p.can_TT!==true)throw new Error('Draft interdit');\nconst cfg=$('01 CONFIG - Editions minimales').first().json;\nconst metadata={tiktok:{title:String(p.organisme||\"Concours Maroc\").slice(0,80)}};\nconst variables={input:{channelId:cfg.tiktokChannelId,text:p.caption,schedulingType:'automatic',mode:'addToQueue',saveToDraft:true,metadata,assets:[{image:{url:p.image_url}}]}};\nconst query='mutation CreateDraft($input:CreatePostInput!){createPost(input:$input){... on PostActionSuccess{post{id text}} ... on MutationError{message}}}';\nreturn {json:{source_url:p.source_url,image_url:p.image_url,channel:'TT',query,variables}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        60
+      ],
+      "id": "eb71b7ab-241d-497c-9c95-cc2cda303e80",
+      "name": "21 TT Construire requête Buffer"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.buffer.com",
+        "options": {
+          "timeout": 45000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: $json.query, variables: $json.variables }) }}"
+      },
+      "id": "6f352dc2-c971-4c50-9a95-071bf4b3b216",
+      "name": "22 TT Buffer - Créer DRAFT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3580,
+        60
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const r=$input.item.json;const p=$('21 TT Construire requête Buffer').item.json;\nconst id=r.data?.createPost?.post?.id||null;\nconst err=r.data?.createPost?.message||r.errors?.[0]?.message||r.error?.message||null;\nreturn {json:{source_url:p.source_url,tiktok_draft_id:id,resultat:id?'DRAFT_CREE':'ECHEC_DRAFT',ok_draft:!!id,erreur:err,channel:'TT',image_url:p.image_url}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3800,
+        60
+      ],
+      "id": "6bbf28f2-c106-40af-b1a5-a543eb337bba",
+      "name": "23 TT Vérifier retour Buffer"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "0cb3780d-fb09-4575-887a-86ee21330016",
+              "leftValue": "={{ $json.ok_draft }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4020,
+        60
+      ],
+      "id": "bf2f1706-83d7-48a8-a8ff-68a30da94e48",
+      "name": "24 TT Draft confirmé ?"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "concours_maroc_drafts"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "source_url",
+              "condition": "eq",
+              "keyValue": "={{ $json.source_url }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "source_url": "={{ $json.source_url }}",
+            "tiktok_draft_id": "={{ $json.tiktok_draft_id }}",
+            "statut": "DRAFT_CREE"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "source_url",
+              "displayName": "source_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tiktok_draft_id",
+              "displayName": "tiktok_draft_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4240,
+        60
+      ],
+      "id": "81d1bab9-7c92-412d-9d68-c7b99aa6faec",
+      "name": "25 TT Enregistrer dans Data Table"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {json:{source_url:$json.source_url,channel:'TT',preview:true,raison:$json.reason_TT,image_url:$json.image_url,buffer_draft_cree:false}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3150,
+        250
+      ],
+      "id": "d4584c62-bdf9-4e8d-802c-00c5008384fd",
+      "name": "26 TT Preview sécurisé"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {json:{source_url:$json.source_url,channel:$json.channel,statut:'ERREUR_BUFFER',erreur:$json.erreur,draft_cree:false}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4250,
+        240
+      ],
+      "id": "e8d307bd-c5ab-455a-b9ac-f2b52336d3dd",
+      "name": "27 TT Erreur Buffer - Revue"
+    },
+    {
+      "parameters": {
+        "content": "## CONCOURS MAROC — FINAL\n1. Relier 3 credentials: 12 OpenAI (OpenAI Predefined ou Header Bearer), 16 HCTI Basic Auth, 22 IG ET 22 TT Buffer Header Auth.\n2. Table existante **concours_maroc_drafts** (source_url, instagram_draft_id, tiktok_draft_id, statut). Les Data Tables sont ciblées par NOM, pas ID.\n3. Changer SEULEMENT 01 CONFIG si nécessaire. Start test manuel. Aucun schedule branché, workflow inactif.\n4. Par défaut DRAFTS OFF. Pour 1 test : allowBufferDrafts=true ET allowManualBufferDrafts=true.\n5. Pas de publication automatique, même en cas de succès Buffer.",
+        "height": 265,
+        "width": 590,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1380,
+        -720
+      ],
+      "id": "3d4eb524-3032-498c-a7fb-93a9b734e003",
+      "name": "LISEZ MOI - IMPORT"
+    },
+    {
+      "parameters": {
+        "content": "## Sécurité\nLes deux branches Instagram et TikTok sont indépendantes.\n**Attention:** Le tableau empêche les doublons à partir des IDs sauvegardés, mais deux exécutions simultanées peuvent courir. Ne lancez jamais le workflow deux fois en parallèle.\nPublication = validation humaine dans Buffer.\nIA et formulaire de concours: données à vérifier avant publication; un brouillon n’est pas une garantie.",
+        "height": 265,
+        "width": 590,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2610,
+        -1100
+      ],
+      "id": "77ba00f6-af4b-4f2e-9cb1-4c5af37479d8",
+      "name": "SÉCURITÉ / PLATEFORMES"
+    },
+    {
+      "parameters": {
+        "content": "## Plan quotidien NON ACTIF\nLe déclencheur 07H est intentionnellement déconnecté. Ne le branchez qu’après un test complet IG/TT, anti-doublons, et contrôle du contenu. Garder ce workflow INACTIF pendant la phase de test.",
+        "height": 265,
+        "width": 590,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1580,
+        330
+      ],
+      "id": "119d3774-40a7-41c8-ae7c-2825ab5e70a9",
+      "name": "ACTIVATION QUOTIDIENNE"
+    }
+  ],
+  "connections": {
+    "17 Préparer média + provenance": {
+      "main": [
+        [
+          {
+            "node": "18 IG Autoriser DRAFT ?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "18 TT Autoriser DRAFT ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "18 IG Autoriser DRAFT ?": {
+      "main": [
+        [
+          {
+            "node": "19 IG Permis ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "19 IG Permis ?": {
+      "main": [
+        [
+          {
+            "node": "20 IG Anti-doublon par canal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "26 IG Preview sécurisé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "20 IG Anti-doublon par canal": {
+      "main": [
+        [
+          {
+            "node": "21 IG Construire requête Buffer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "21 IG Construire requête Buffer": {
+      "main": [
+        [
+          {
+            "node": "22 IG Buffer - Créer DRAFT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22 IG Buffer - Créer DRAFT": {
+      "main": [
+        [
+          {
+            "node": "23 IG Vérifier retour Buffer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "23 IG Vérifier retour Buffer": {
+      "main": [
+        [
+          {
+            "node": "24 IG Draft confirmé ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "24 IG Draft confirmé ?": {
+      "main": [
+        [
+          {
+            "node": "25 IG Enregistrer dans Data Table",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "27 IG Erreur Buffer - Revue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "18 TT Autoriser DRAFT ?": {
+      "main": [
+        [
+          {
+            "node": "19 TT Permis ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "19 TT Permis ?": {
+      "main": [
+        [
+          {
+            "node": "20 TT Anti-doublon par canal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "26 TT Preview sécurisé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "20 TT Anti-doublon par canal": {
+      "main": [
+        [
+          {
+            "node": "21 TT Construire requête Buffer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "21 TT Construire requête Buffer": {
+      "main": [
+        [
+          {
+            "node": "22 TT Buffer - Créer DRAFT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22 TT Buffer - Créer DRAFT": {
+      "main": [
+        [
+          {
+            "node": "23 TT Vérifier retour Buffer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "23 TT Vérifier retour Buffer": {
+      "main": [
+        [
+          {
+            "node": "24 TT Draft confirmé ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "24 TT Draft confirmé ?": {
+      "main": [
+        [
+          {
+            "node": "25 TT Enregistrer dans Data Table",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "27 TT Erreur Buffer - Revue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "00 TEST MANUEL - START": {
+      "main": [
+        [
+          {
+            "node": "01 CONFIG - Editions minimales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 CONFIG - Editions minimales": {
+      "main": [
+        [
+          {
+            "node": "02 Emploi-public - Annonces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 Emploi-public - Annonces": {
+      "main": [
+        [
+          {
+            "node": "03 Extraire liens officiels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 Extraire liens officiels": {
+      "main": [
+        [
+          {
+            "node": "04 Préparer lecture historique",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 Préparer lecture historique": {
+      "main": [
+        [
+          {
+            "node": "05 Data Table - Historique",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 Data Table - Historique": {
+      "main": [
+        [
+          {
+            "node": "06 Choisir concours sans doublon",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 Choisir concours sans doublon": {
+      "main": [
+        [
+          {
+            "node": "07 Lire chaque fiche",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07 Lire chaque fiche": {
+      "main": [
+        [
+          {
+            "node": "08 Extraire fiche et lien PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 Extraire fiche et lien PDF": {
+      "main": [
+        [
+          {
+            "node": "09 Filtrer et limiter appels IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 Filtrer et limiter appels IA": {
+      "main": [
+        [
+          {
+            "node": "10 PDF officiel présent ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 PDF officiel présent ?": {
+      "main": [
+        [
+          {
+            "node": "11 Préparer OpenAI (PDF & Fiche)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "95 A REVOIR - PDF absent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11 Préparer OpenAI (PDF & Fiche)": {
+      "main": [
+        [
+          {
+            "node": "12 OpenAI - Lire PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "12 OpenAI - Lire PDF": {
+      "main": [
+        [
+          {
+            "node": "13 Contrôle qualité de la fiche",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "13 Contrôle qualité de la fiche": {
+      "main": [
+        [
+          {
+            "node": "14 Annonce contrôlée ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "14 Annonce contrôlée ?": {
+      "main": [
+        [
+          {
+            "node": "15 Générer Affiche 1080x1350 + Caption",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "96 A REVOIR - IA incohérente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15 Générer Affiche 1080x1350 + Caption": {
+      "main": [
+        [
+          {
+            "node": "16 HCTI - JPG (1080x1350)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "16 HCTI - JPG (1080x1350)": {
+      "main": [
+        [
+          {
+            "node": "17 Préparer média + provenance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Casablanca"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
